@@ -6,6 +6,9 @@ import pygame #version 1.9.3
 import random
 import math
 import sys
+import LearningAgent
+from gameState import gameState
+import playGame
 
 pygame.init()
 pygame.font.init()
@@ -19,7 +22,7 @@ clock = pygame.time.Clock()
 
 pieceNames = ('I', 'O', 'T', 'S', 'Z', 'J', 'L')
 
-STARTING_LEVEL = 0 #Change this to start a new game at a higher level
+STARTING_LEVEL = 28 #Change this to start a new game at a higher level
 
 MOVE_PERIOD_INIT = 4 #Piece movement speed when up/right/left arrow keys are pressed (Speed is defined as frame count. Game is 60 fps) 
 
@@ -733,15 +736,24 @@ def gameLoop():
 	mainBoard = MainBoard(blockSize,boardPosX,boardPosY,boardColNum,boardRowNum,boardLineWidth,blockLineWidth,scoreBoardWidth)	
 	
 	xChange = 0
-	
+	agent = LearningAgent.TetrisQAgent(None)
 	gameExit = False
-
+	state = None
 	while not gameExit: #Stay in this loop unless the game is quit
-		
+		if mainBoard.gameStatus == 'gameOver':
+			# calls the final function for the agent to signal the end of the episode
+			agent.final(state)
+		if state is None:
+			state = gameState(mainBoard, [], directions)
+		else:
+			state = gameState(mainBoard, state.getPreviousObservations(), directions)
+		action = agent.chooseAction(state)
+		#print(action)
+		input = playGame.GenerateInput(action)
+		input.pressButton() # simulate button press
 		for event in pygame.event.get():	
 			if event.type == pygame.QUIT: #Looks for quitting event in every iteration (Meaning closing the game window)
 				gameExit = True
-				
 			if event.type == pygame.KEYDOWN: #Keyboard keys press events
 				if event.key == pygame.K_LEFT:
 					xChange += -1
@@ -767,7 +779,7 @@ def gameLoop():
 						key.restart.status = 'pressed'
 				if event.key == pygame.K_RETURN:
 					key.enter.status = 'pressed'
-						
+			input.releaseButton() # simulate released button
 			if event.type == pygame.KEYUP: #Keyboard keys release events
 				if event.key == pygame.K_LEFT:
 					xChange += 1

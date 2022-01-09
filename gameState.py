@@ -1,3 +1,4 @@
+import copy
 class gameState():
     """
     Class that defines what a gameState is consisted of
@@ -13,12 +14,79 @@ class gameState():
         self.previousObservations = previousGameStatesList 
         self.previousObservations.append(self) # add current observation
         self.directions = directions
+        self.gameState = mainBoard.gameStatus
+    
+    def generateSuccessorState(self, action):
+        mainBoard = copy.deepcopy(self.mainBoard)
+        previousGameStatesList = copy.deepcopy(self.previousObservations)
+        if mainBoard.gameStatus == 'firstStart':
+            if action == 'restart':
+                mainBoard.restart()
+        elif mainBoard.gameStatus == 'running':
+            if mainBoard.gamePause == False:
+                # move piece
+                if mainBoard.piece.status == 'uncreated':
+                    #Create newPiece
+                    mainBoard.piece.status = 'moving'
+                    mainBoard.piece.spawn()
+                if action == 'right':
+                    if mainBoard.piece.movCollisionCheck('down'):
+                        mainBoard.piece.status = 'collided'
+                        mainBoard.piece.createNextMove('noMove')
+                    elif mainBoard.piece.movCollisionCheck('downRight'):
+                        mainBoard.piece.createNextMove('down')
+                    else:
+                        mainBoard.piece.createNextMove('downRight')
+                elif action == 'left':
+                    if mainBoard.piece.movCollisionCheck('down'):
+                        mainBoard.piece.status = 'collided'
+                        mainBoard.piece.createNextMove('noMove')
+                    elif mainBoard.piece.movCollisionCheck('downLeft'):
+                        mainBoard.piece.createNextMove('down')
+                    else:
+                        mainBoard.piece.createNextMove('downLeft')
+                elif action == 'down':
+                    if mainBoard.piece.movCollisionCheck('down'):
+                        mainBoard.piece.createNextMove('noMove')
+                        mainBoard.piece.status = 'collided'
+                    else:
+                        mainBoard.piece.createNextMove('down')
+                elif action == 'noMove':
+                    mainBoard.piece.createNextMove('noMove')
+                #mainBoard.piece.applyFastMove() # initiate move
+                #mainBoard.piece.slowMoveAction() # initiate move
+                mainBoard.checkAndApplyGameOver()
+                if mainBoard.gameStatus != 'gameOver':
+                    if mainBoard.piece.status == 'moving': # piece is moving
+                        if action == 'up':	
+                            mainBoard.piece.rotate('CW')
+                        if action == 'z':	
+                            mainBoard.piece.rotate('cCW')
+                    elif mainBoard.piece.status == 'collided':			
+                        if mainBoard.lineClearStatus == 'idle':
+                            for i in range(0,4):
+                                mainBoard.blockMat[mainBoard.piece.blocks[i].currentPos.row][mainBoard.piece.blocks[i].currentPos.col] = mainBoard.piece.type
+                            mainBoard.clearedLines = mainBoard.getCompleteLines()
+                            mainBoard.updateScores()
+                        elif mainBoard.lineClearStatus == 'clearRunning':
+                            mainBoard.lineClearAnimation()
+                        else:
+                            mainBoard.dropFreeBlocks()
+                            mainBoard.prepareNextSpawn()
+        else: # 'gameOver'
+            if action == 'restart':
+                mainBoard.restart()
+        return gameState(mainBoard, previousGameStatesList, self.directions)
+
+    
+    def getStateSpace(self):
+        return self.space
 
     def isStartingMenu(self):
         """
         Returns true if we're at the starting menu
         """
-        return len(self.previousObservations) == 0
+        return self.gameState == 'firstStart'
 
     def getLevel(self):
         return self.level
@@ -48,25 +116,11 @@ class gameState():
 
     def getMovingPiecePosition(self):
         return (self.piece.colNum, self.piece.rowNum)
+    
+    def getNextPiece(self):
+        return self.nextPieces[-1]
 
-    def getLegalSuccessorPositions(self):
-        """ 
-        Function that returns the possible transition positions.
-        """
-        if self.isTerminal():
-            return("TERMINAL_STATE")
-        futurePositions = []
-        pos = self.getMovingPiecePosition()  # piece xy vector
-        for direction in self.directions:  # loop over all directions
-            transformation = self.directions[direction]  # get direction vector
-            # add direction vector on current position
-            dx, dy = tuple(map(lambda i, j: i + j, pos, transformation))
-            try:
-                if self.space[dx][dy] == 'empty':  # If position is empty, it's legal
-                    futurePositions.append((dx, dy))
-            except IndexError:  # If new position is out of bounds, continue.
-                continue
-        return futurePositions
+
 
     def getLegalActions(self):
         """ 
@@ -76,18 +130,14 @@ class gameState():
         if self.isTerminal() or self.isStartingMenu() : # if we hit a terminal state (game over)
             return([]) # return empty list
 
-        actions = ['R_rotate', 'L_rotate']  # rotate left, rotate right
-        successorStates = self.getLegalSuccessorPositions()
-        pos = self.getMovingPiecePosition()
-        for direction in self.directions:
-            transformation = self.directions[direction]
-            dx, dy = tuple(map(lambda i, j: i + j, pos, transformation)) # adds transformation tuple on position tuple (vector addition)
-            if (dx, dy) in successorStates:
-                actions.append(direction)
+        actions = ['R_rotate', 'L_rotate','down','up','downRight','downLeft','noMove']
         return actions
-
+    
     def isTerminal(self):
         """ 
         returns if the current gameState is a terminal state
         """
-        return self.piece.gameOverCondition
+        return self.gameState == 'gameOver'
+
+    def isGameRunning(self):
+        return self.gameState == 'running'
